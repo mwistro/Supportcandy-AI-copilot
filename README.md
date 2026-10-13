@@ -6,9 +6,17 @@ Built to sit on top of a production help desk with zero changes to SupportCandy 
 
 > Screenshots below use mock data — no real tickets, customers or company names.
 
-| Pending drafts | AI-drafted options | History |
-|---|---|---|
-| ![Pending tickets list](screenshots/pending-list.jpg) | ![Ticket detail with three AI draft options](screenshots/ticket-detail.jpg) | ![Sent replies history](screenshots/history.jpg) |
+**A ticket open in the PWA, with the three AI-drafted reply options:**
+
+![Ticket detail with three AI draft options](screenshots/ticket-detail.jpg)
+
+**Pending drafts waiting for an agent:**
+
+![Pending tickets list](screenshots/pending-list.jpg)
+
+**Sent replies history:**
+
+![Sent replies history](screenshots/history.jpg)
 
 ## Why
 
