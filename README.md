@@ -4,6 +4,12 @@ A WordPress plugin that drafts AI-generated reply suggestions for new [SupportCa
 
 Built to sit on top of a production help desk with zero changes to SupportCandy itself, and to degrade gracefully: if OpenAI is unavailable or disabled, simple keyword-matched templates still cover the most common requests.
 
+> Screenshots below use mock data — no real tickets, customers or company names.
+
+| Pending drafts | AI-drafted options | History |
+|---|---|---|
+| ![Pending tickets list](screenshots/pending-list.jpg) | ![Ticket detail with three AI draft options](screenshots/ticket-detail.jpg) | ![Sent replies history](screenshots/history.jpg) |
+
 ## Why
 
 A support team was spending a lot of agent time on repetitive first-touch replies (password resets, "my mailbox is full", "how do I set up an out-of-office reply", etc.) and on drafting the first clarifying question for less common tickets. The goal was to cut that time down without ever letting an LLM talk to a customer unsupervised.
