@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AI Ticket Copilot</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#111827" />
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #111827;
+    --muted: #6b7280;
+    --accent: #f97316;
+    --accent-ink: #ffffff;
+    --border: #e5e7eb;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0d12;
+      --card: #161a22;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --border: #262b36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-inline: 16px;
+  }
+  header {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    background: var(--bg);
+    padding-block: 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 5;
+  }
+  h1 { font-size: 18px; margin: 0; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px;
+  }
+  .status-dot.live { background: var(--ok); }
+  #status-line { font-size: 12px; color: var(--muted); }
+  .header-actions { display: flex; align-items: center; gap: 10px; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--card);
+    font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+    flex-shrink: 0;
+  }
+  .icon-btn.bell-on { background: var(--accent); border-color: var(--accent); }
+  .icon-btn.bell-off { opacity: .55; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tab-btn {
+    flex: 1; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--card);
+    color: var(--muted); font: inherit; font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  .tab-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .ticket-card { cursor: pointer; }
+  .ticket-subject { font-weight: 600; margin: 0 0 6px; }
+  .meta-row { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border);
+  }
+  .badge.prio-baja { color: var(--ok); border-color: var(--ok); }
+  .badge.prio-media { color: #b45309; border-color: #b45309; }
+  .badge.prio-alta { color: var(--danger); border-color: var(--danger); }
+  .badge.prio-urgente { background: var(--danger); color: #fff; border-color: var(--danger); }
+  #empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .hidden { display: none !important; }
+
+  /* Detail view */
+  #detail-view { padding-bottom: 40px; }
+  .back-btn {
+    background: none; border: none; color: var(--accent); font-size: 15px; padding: 8px 0; cursor: pointer;
+  }
+  .option-btn {
+    display: block; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; margin-bottom: 10px; cursor: pointer; color: var(--text); font: inherit;
+  }
+  .option-btn strong { display: block; margin-bottom: 6px; }
+  .option-btn p { margin: 0; font-size: 14px; color: var(--muted); white-space: pre-wrap; }
+  textarea#confirm-text {
+    width: 100%; min-height: 220px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); padding: 12px; font: inherit; resize: vertical;
+  }
+  .btn {
+    display: block; width: 100%; padding: 14px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600;
+    cursor: pointer; margin-top: 10px;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--card); color: var(--danger); border: 1px solid var(--danger); }
+  .btn:disabled { opacity: .5; }
+
+  /* Login */
+  #login-view { max-width: 420px; margin: 60px auto; }
+  #login-view input {
+    width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font: inherit;
+  }
+  #login-error { color: var(--danger); font-size: 13px; min-height: 18px; }
+</style>
+</head>
+<body>
+
+<div id="login-view" class="hidden">
+  <h1 style="margin-bottom: 4px;">AI Ticket Copilot</h1>
+  <p style="color: var(--muted); font-size: 14px;">Inicia sesion con tu usuario de WordPress y un <b>Application Password</b> (Perfil &gt; Application Passwords en el escritorio de WordPress).</p>
+  <input id="login-user" type="text" placeholder="Usuario de WordPress" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" />
+  <input id="login-pass" type="password" placeholder="Application Password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" />
+  <div id="login-error"></div>
+  <button class="btn btn-primary" id="login-submit">Entrar</button>
+</div>
+
+<div id="app-view" class="hidden">
+  <header>
+    <h1>AI Ticket Copilot</h1>
+    <div class="header-actions">
+      <button id="bell-btn" class="icon-btn bell-off" aria-label="Notificaciones" title="Activar notificaciones">🔔</button>
+      <span id="status-line"><span class="status-dot" id="status-dot"></span><span id="status-text">conectando…</span></span>
+    </div>
+  </header>
+
+  <div id="list-view">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="pending">Pendientes</button>
+      <button class="tab-btn" data-tab="history">Respondidas</button>
+    </div>
+    <div id="tickets-list"></div>
+    <div id="history-list" class="hidden"></div>
+    <div id="empty-state" class="hidden">No hay borradores pendientes. 🎉</div>
+    <div id="empty-history" class="hidden">Todavia no hay respuestas enviadas.</div>
+  </div>
+
+  <div id="detail-view" class="hidden">
+    <button class="back-btn" id="back-to-list">‹ Volver</button>
+    <div class="card">
+      <p class="ticket-subject" id="detail-subject"></p>
+      <div class="meta-row" id="detail-meta"></div>
+      <div id="detail-requester" style="margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.6;"></div>
+      <div id="detail-description" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 14px; white-space: pre-wrap;"></div>
+    </div>
+
+    <div id="options-view">
+      <div class="card">
+        <button type="button" class="btn btn-secondary" id="acknowledge-btn" style="margin-top: 0;">Enviar «Te llamaremos en un rato»</button>
+        <p id="acknowledge-status" role="status" aria-live="polite" style="margin: 8px 0 0; font-size: 13px; color: var(--muted);">Avisa al cliente. El ticket sigue pendiente para responder despues.</p>
+      </div>
+      <button class="option-btn" data-choice="basico">
+        <strong>Opción 1</strong>
+        <p></p>
+      </button>
+      <button class="option-btn" data-choice="intermedio">
+        <strong>Opción 2</strong>
+        <p></p>
+      </button>
+      <button class="option-btn" data-choice="tecnico">
+        <strong>Opción 3</strong>
+        <p></p>
+      </button>
+      <button class="btn btn-secondary" id="manual-btn">Responder manualmente</button>
+      <button class="btn btn-danger" id="discard-btn">Descartar (sin responder)</button>
+    </div>
+
+    <div id="confirm-view" class="hidden">
+      <p style="color: var(--muted); font-size: 13px;">Revisa o edita antes de enviar. Esto se envia como respuesta real al cliente.</p>
+      <textarea id="confirm-text"></textarea>
+      <button class="btn btn-primary" id="confirm-send">Enviar respuesta</button>
+      <button class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var LS_KEY = 'cai_pwa_auth';
+  var POLL_MS = 20000;
+  var SITE_URL = 'https://your-site.example.com';
+  var state = { site: SITE_URL, user: '', pass: '', tickets: [], current: null, pollTimer: null };
+  var acknowledgementsInFlight = {};
+
+  var FIREBASE_CONFIG = {
+    apiKey: 'YOUR_FIREBASE_API_KEY',
+    authDomain: 'your-project.firebaseapp.com',
+    projectId: 'your-project-id',
+    storageBucket: 'your-project.firebasestorage.app',
+    messagingSenderId: 'YOUR_SENDER_ID',
+    appId: 'YOUR_APP_ID'
+  };
+  var FIREBASE_VAPID_KEY = 'YOUR_VAPID_KEY';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function saveAuth() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ site: state.site, user: state.user, pass: state.pass }));
+    } catch (e) {}
+  }
+
+  function loadAuth() {
+    try {
+      var raw = localStorage.getItem(LS_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+
+  function clearAuth() {
+    try { localStorage.removeItem(LS_KEY); } catch (e) {}
+  }
+
+  function apiUrl(path) {
+    return state.site.replace(/\/+$/, '') + '/wp-json/ai-ticket-copilot/v1' + path;
+  }
+
+  function authHeader() {
+    return 'Basic ' + btoa(state.user + ':' + state.pass);
+  }
+
+  function setStatus(live, text) {
+    $('status-dot').className = 'status-dot' + (live ? ' live' : '');
+    $('status-text').textContent = text;
+  }
+
+  function showLogin(errorMsg) {
+    $('login-view').classList.remove('hidden');
+    $('app-view').classList.add('hidden');
+    $('login-error').textContent = errorMsg || '';
+    var saved = loadAuth();
+    if (saved) {
+      $('login-user').value = saved.user || '';
+    }
+  }
+
+  function showApp() {
+    $('login-view').classList.add('hidden');
+    $('app-view').classList.remove('hidden');
+  }
+
+  function prioBadgeClass(p) {
+    var v = String(p == null ? '' : p).toLowerCase();
+    if (v.indexOf('urgente') !== -1 || v.indexOf('critic') !== -1) return 'badge prio-urgente';
+    if (v.indexOf('alta') !== -1) return 'badge prio-alta';
+    if (v.indexOf('baja') !== -1) return 'badge prio-baja';
+    if (v.indexOf('media') !== -1) return 'badge prio-media';
+    return 'badge';
+  }
+
+  function renderList() {
+    var list = $('tickets-list');
+    list.innerHTML = '';
+    if (!state.tickets.length) {
+      $('empty-state').classList.remove('hidden');
+      return;
+    }
+    $('empty-state').classList.add('hidden');
+    state.tickets.forEach(function (t) {
+      var card = document.createElement('div');
+      card.className = 'card ticket-card';
+      card.innerHTML =
+        '<p class="ticket-subject">#' + t.ticket_id + ' — ' + escapeHtml(t.subject) + '</p>' +
+        (t.customer_name ? '<p style="margin: 0 0 4px; font-size: 13px; color: var(--muted);">👤 ' + escapeHtml(t.customer_name) + (t.company ? ' · ' + escapeHtml(t.company) : '') + '</p>' : '') +
+        (t.description ? '<p style="margin: 0 0 8px; font-size: 13px; color: var(--text); white-space: pre-wrap;">' + escapeHtml(truncate(t.description, 140)) + '</p>' : '') +
+        '<div class="meta-row">' +
+          '<span class="badge">' + escapeHtml(t.category) + '</span>' +
+          '<span class="' + prioBadgeClass(t.priority) + '">Prioridad: ' + escapeHtml(capitalize(t.priority)) + '</span>' +
+        '</div>';
+      card.addEventListener('click', function () { openDetail(t); });
+      list.appendChild(card);
+    });
+  }
+
+  function capitalize(s) {
+    s = String(s == null ? '' : s);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function truncate(s, max) {
+    s = String(s == null ? '' : s);
+    return s.length > max ? s.slice(0, max).trim() + '…' : s;
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function openDetail(t) {
+    state.current = t;
+    $('list-view').classList.add('hidden');
+    $('detail-view').classList.remove('hidden');
+    $('options-view').classList.remove('hidden');
+    $('confirm-view').classList.add('hidden');
+
+    $('detail-subject').textContent = '#' + t.ticket_id + ' — ' + t.subject;
+    $('detail-meta').innerHTML =
+      '<span class="badge">' + escapeHtml(t.category) + '</span>' +
+      '<span class="' + prioBadgeClass(t.priority) + '">Prioridad: ' + escapeHtml(capitalize(t.priority)) + '</span>';
+
+    var requesterLines = [];
+    if (t.customer_name) requesterLines.push('👤 ' + escapeHtml(t.customer_name));
+    if (t.company) requesterLines.push('🏢 ' + escapeHtml(t.company));
+    if (t.phone) requesterLines.push('📞 ' + escapeHtml(t.phone));
+    if (t.customer_email) requesterLines.push('✉️ ' + escapeHtml(t.customer_email));
+    $('detail-requester').innerHTML = requesterLines.join('<br>');
+    $('detail-description').textContent = t.description || '';
+    $('detail-description').classList.toggle('hidden', !t.description);
+    renderAcknowledgement(t);
+
+    document.querySelectorAll('.option-btn').forEach(function (btn) {
+      var choice = btn.getAttribute('data-choice');
+      btn.querySelector('p').textContent = t['draft_' + choice];
+      btn.onclick = function () { openConfirm(choice); };
+    });
+  }
+
+  function openConfirm(choice) {
+    $('options-view').classList.add('hidden');
+    $('confirm-view').classList.remove('hidden');
+    $('confirm-text').value = choice === 'manual' ? '' : state.current['draft_' + choice];
+    $('confirm-text').focus();
+  }
+
+  function renderAcknowledgement(ticket) {
+    var ack = ticket.ack_state || '';
+    var sending = !!acknowledgementsInFlight[ticket.id];
+    $('acknowledge-btn').disabled = sending || ack !== '';
+    $('acknowledge-btn').textContent = ack === 'sent' ? 'Aviso enviado' : sending ? 'Enviando aviso...' : 'Enviar «Te llamaremos en un rato»';
+    $('acknowledge-status').textContent = ack === 'sent'
+      ? 'Ya se ha enviado «Te llamaremos en un rato». El ticket sigue pendiente.'
+      : sending ? 'Enviando el mensaje al cliente...'
+      : ack !== '' ? 'Aviso en curso o sin confirmar. Comprueba el ticket en WordPress antes de enviar otro mensaje.'
+      : 'Avisa al cliente. El ticket sigue pendiente para responder despues.';
+  }
+
+  function sendAcknowledgement() {
+    var ticket = state.current;
+    if (!ticket || ticket.ack_state || acknowledgementsInFlight[ticket.id]) return;
+    acknowledgementsInFlight[ticket.id] = true;
+    renderAcknowledgement(ticket);
+    return fetch(apiUrl('/acknowledge'), {
+      method: 'POST',
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: ticket.id })
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo confirmar el aviso. Comprueba el ticket en WordPress.');
+          return data;
+        });
+      })
+      .then(function (data) {
+        ticket.ack_state = data.ack_state;
+        ticket.ack_sent_at = data.ack_sent_at;
+        state.tickets.forEach(function (item) {
+          if (String(item.id) === String(ticket.id)) {
+            item.ack_state = ticket.ack_state;
+            item.ack_sent_at = ticket.ack_sent_at;
+          }
+        });
+      })
+      .catch(function (error) {
+        ticket.ack_state = 'uncertain';
+        alert(error.message || 'No se pudo confirmar el aviso. Comprueba el ticket en WordPress antes de reintentar.');
+      })
+      .finally(function () {
+        delete acknowledgementsInFlight[ticket.id];
+        if (state.current && String(state.current.id) === String(ticket.id)) {
+          state.current.ack_state = ticket.ack_state;
+          state.current.ack_sent_at = ticket.ack_sent_at;
+          renderAcknowledgement(state.current);
+        }
+        fetchPending();
+      });
+  }
+
+  function backToOptions() {
+    $('confirm-view').classList.add('hidden');
+    $('options-view').classList.remove('hidden');
+  }
+
+  function backToList() {
+    $('detail-view').classList.add('hidden');
+    $('list-view').classList.remove('hidden');
+    state.current = null;
+    fetchPending();
+  }
+
+  function fetchPending() {
+    fetch(apiUrl('/pending'), { headers: { Authorization: authHeader() } })
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) {
+          setStatus(false, 'sesion invalida');
+          throw new Error('auth');
+        }
+        if (!res.ok) throw new Error('http ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        state.tickets = data || [];
+        setStatus(true, 'actualizado ' + new Date().toLocaleTimeString());
+        if (!state.current) renderList();
+        else if (!acknowledgementsInFlight[state.current.id]) {
+          var current = state.tickets.find(function (t) { return String(t.id) === String(state.current.id); });
+          if (current) {
+            state.current.ack_state = current.ack_state;
+            state.current.ack_sent_at = current.ack_sent_at;
+            renderAcknowledgement(state.current);
+          }
+        }
+      })
+      .catch(function (err) {
+        if (err.message === 'auth') {
+          stopPolling();
+          clearAuth();
+          showLogin('La sesion expiro o el Application Password ya no es valido. Inicia sesion de nuevo.');
+          return;
+        }
+        setStatus(false, 'sin conexion');
+      });
+  }
+
+  function isPushEnabled() {
+    try {
+      // Sin flag guardado (usuarios de antes de este toggle, o primera vez)
+      // se trata como activado por defecto -- solo '0' explicito lo apaga.
+      return localStorage.getItem('cai_push_enabled') !== '0';
+    } catch (e) { return true; }
+  }
+
+  function setPushEnabled(enabled) {
+    try { localStorage.setItem('cai_push_enabled', enabled ? '1' : '0'); } catch (e) {}
+  }
+
+  function getLastToken() {
+    try { return localStorage.getItem('cai_push_token') || ''; } catch (e) { return ''; }
+  }
+
+  function setLastToken(token) {
+    try { localStorage.setItem('cai_push_token', token || ''); } catch (e) {}
+  }
+
+  function getMessagingInstance(registration) {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    return firebase.messaging();
+  }
+
+  function registerPushToken() {
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+
+    Notification.requestPermission().then(function (permission) {
+      if (permission !== 'granted') {
+        updateBellUI();
+        return;
+      }
+
+      navigator.serviceWorker.ready.then(function (registration) {
+        try {
+          var messaging = getMessagingInstance(registration);
+          messaging.getToken({ vapidKey: FIREBASE_VAPID_KEY, serviceWorkerRegistration: registration })
+            .then(function (token) {
+              if (!token) return;
+              // Si Firebase emitio un token distinto al ultimo guardado (pasa
+              // tras actualizar el Service Worker), desregistra el viejo para
+              // que este dispositivo no reciba la misma notificacion dos veces.
+              var oldToken = getLastToken();
+              var cleanup = (oldToken && oldToken !== token)
+                ? fetch(apiUrl('/unregister-token'), {
+                    method: 'POST',
+                    headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: oldToken })
+                  }).catch(function () {})
+                : Promise.resolve();
+
+              cleanup.then(function () {
+                return fetch(apiUrl('/register-token'), {
+                  method: 'POST',
+                  headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: token })
+                });
+              })
+                .then(function () { setLastToken(token); setPushEnabled(true); updateBellUI(); })
+                .catch(function () {});
+            })
+            .catch(function () {});
+
+          messaging.onMessage(function (payload) {
+            fetchPending();
+            var n = payload.notification || {};
+            if (n.title) {
+              try { new Notification(n.title, { body: n.body || '' }); } catch (e) {}
+            }
+          });
+        } catch (e) {}
+      });
+    });
+  }
+
+  function disablePush() {
+    if (!('serviceWorker' in navigator)) {
+      setPushEnabled(false);
+      updateBellUI();
+      return;
+    }
+    navigator.serviceWorker.ready.then(function (registration) {
+      try {
+        var messaging = getMessagingInstance(registration);
+        messaging.getToken({ vapidKey: FIREBASE_VAPID_KEY, serviceWorkerRegistration: registration })
+          .then(function (token) {
+            if (!token) return;
+            return fetch(apiUrl('/unregister-token'), {
+              method: 'POST',
+              headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: token })
+            });
+          })
+          .catch(function () {})
+          .finally(function () { setLastToken(''); setPushEnabled(false); updateBellUI(); });
+      } catch (e) {
+        setPushEnabled(false);
+        updateBellUI();
+      }
+    });
+  }
+
+  function startPolling() {
+    fetchPending();
+    stopPolling();
+    state.pollTimer = setInterval(fetchPending, POLL_MS);
+  }
+
+  function stopPolling() {
+    if (state.pollTimer) clearInterval(state.pollTimer);
+    state.pollTimer = null;
+  }
+
+  function sendReply() {
+    var text = $('confirm-text').value.trim();
+    if (!text) return;
+    if (!confirm('¿Enviar esta respuesta al cliente? Esta accion no se puede deshacer.')) return;
+    $('confirm-send').disabled = true;
+    fetch(apiUrl('/send'), {
+      method: 'POST',
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: state.current.id, choice: 'custom', text: text })
+    })
+      .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
+      .then(function () { backToList(); })
+      .catch(function () { alert('No se pudo enviar. Revisa la conexion e intenta de nuevo.'); })
+      .finally(function () { $('confirm-send').disabled = false; });
+  }
+
+  function dismissTicket() {
+    if (!state.current) return;
+    if (!confirm('¿Seguro que quieres descartar este borrador sin responder? El cliente no recibira ninguna respuesta desde aqui.')) return;
+    fetch(apiUrl('/dismiss'), {
+      method: 'POST',
+      headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: state.current.id })
+    })
+      .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
+      .then(function () { backToList(); })
+      .catch(function () { alert('No se pudo descartar. Intenta de nuevo.'); });
+  }
+
+  function fetchHistory() {
+    fetch(apiUrl('/history'), { headers: { Authorization: authHeader() } })
+      .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
+      .then(function (data) { renderHistory(data || []); })
+      .catch(function () {});
+  }
+
+  function renderHistory(rows) {
+    var list = $('history-list');
+    list.innerHTML = '';
+    if (!rows.length) {
+      $('empty-history').classList.remove('hidden');
+      return;
+    }
+    $('empty-history').classList.add('hidden');
+    rows.forEach(function (r) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      var sentAt = r.updated_at ? new Date(r.updated_at.replace(' ', 'T')).toLocaleString() : '';
+      card.innerHTML =
+        '<p class="ticket-subject">#' + r.ticket_id + ' — ' + escapeHtml(r.subject) + '</p>' +
+        (r.customer_name ? '<p style="margin: 0 0 8px; font-size: 13px; color: var(--muted);">👤 ' + escapeHtml(r.customer_name) + (r.company ? ' · ' + escapeHtml(r.company) : '') + '</p>' : '') +
+        (r.sent_text ? '<p style="margin: 0 0 8px; font-size: 13px; white-space: pre-wrap;">' + escapeHtml(r.sent_text) + '</p>' : '') +
+        '<div class="meta-row">' +
+          (r.sent_by_name ? '<span class="badge">enviado por ' + escapeHtml(r.sent_by_name) + '</span>' : '') +
+          (sentAt ? '<span class="badge">' + sentAt + '</span>' : '') +
+        '</div>';
+      list.appendChild(card);
+    });
+  }
+
+  function updateBellUI() {
+    var btn = $('bell-btn');
+    if (!btn) return;
+    if (!('Notification' in window)) {
+      btn.classList.add('hidden');
+      return;
+    }
+    btn.classList.remove('bell-on', 'bell-off');
+    if (Notification.permission === 'granted' && isPushEnabled()) {
+      btn.classList.add('bell-on');
+      btn.title = 'Notificaciones activadas (toca para desactivar)';
+    } else {
+      btn.classList.add('bell-off');
+      if (Notification.permission === 'denied') {
+        btn.title = 'Notificaciones bloqueadas -- actívalas en los ajustes del navegador';
+      } else {
+        btn.title = 'Activar notificaciones';
+      }
+    }
+  }
+
+  function tryLogin(user, pass, silent) {
+    state.site = SITE_URL;
+    state.user = user;
+    state.pass = pass;
+    return fetch(apiUrl('/pending'), { headers: { Authorization: authHeader() } })
+      .then(function (res) {
+        if (!res.ok) throw new Error('No se pudo iniciar sesion (revisa sitio, usuario y contraseña).');
+        return res.json();
+      })
+      .then(function (data) {
+        saveAuth();
+        state.tickets = data || [];
+        showApp();
+        renderList();
+        startPolling();
+        updateBellUI();
+        // Si el navegador ya tiene permiso concedido y el agente no lo
+        // desactivo desde el sino, refresca el token sin pedir permiso de
+        // nuevo (no hace falta gesto del usuario). Si aun no se pidio o fue
+        // bloqueado, se pide al tocar el sino -- en iOS Safari el permiso
+        // solo se puede pedir desde un gesto explicito.
+        if (window.Notification && Notification.permission === 'granted' && isPushEnabled()) registerPushToken();
+      })
+      .catch(function (err) {
+        if (!silent) $('login-error').textContent = err.message || 'Error al iniciar sesion.';
+        else showLogin('');
+      });
+  }
+
+  $('login-submit').addEventListener('click', function () {
+    var user = $('login-user').value.trim();
+    var pass = $('login-pass').value.trim();
+    if (!user || !pass) {
+      $('login-error').textContent = 'Completa usuario y contraseña.';
+      return;
+    }
+    tryLogin(user, pass, false);
+  });
+
+  $('back-to-list').addEventListener('click', backToList);
+  $('confirm-cancel').addEventListener('click', backToOptions);
+  $('confirm-send').addEventListener('click', sendReply);
+  $('manual-btn').addEventListener('click', function () { openConfirm('manual'); });
+  $('discard-btn').addEventListener('click', dismissTicket);
+  $('acknowledge-btn').addEventListener('click', sendAcknowledgement);
+
+  $('bell-btn').addEventListener('click', function () {
+    if (window.Notification && Notification.permission === 'denied') {
+      alert('Las notificaciones estan bloqueadas para esta app. Actívalas desde los ajustes de notificaciones del navegador o del sistema.');
+      return;
+    }
+    if (window.Notification && Notification.permission === 'granted' && isPushEnabled()) {
+      disablePush();
+    } else {
+      registerPushToken();
+    }
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      if (tab === 'pending') {
+        $('tickets-list').classList.remove('hidden');
+        $('history-list').classList.add('hidden');
+        $('empty-history').classList.add('hidden');
+        renderList();
+      } else {
+        $('tickets-list').classList.add('hidden');
+        $('empty-state').classList.add('hidden');
+        $('history-list').classList.remove('hidden');
+        fetchHistory();
+      }
+    });
+  });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(function (registration) {
+        // Los navegadores solo revisan si hay una version nueva del Service
+        // Worker al navegar, y con un limite de una vez cada tantas horas.
+        // Forzamos la revision cada 30s para que una actualizacion del
+        // plugin llegue sola, sin que el agente tenga que cerrar y volver
+        // a abrir el PWA.
+        setInterval(function () {
+          registration.update().catch(function () {});
+        }, 30000);
+      })
+      .catch(function () {});
+    // Si un Service Worker nuevo toma el control (version actualizada),
+    // recarga la pagina automaticamente para no quedar con la version vieja.
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+  }
+
+  var saved = loadAuth();
+  if (saved && saved.user && saved.pass) {
+    tryLogin(saved.user, saved.pass, true);
+  } else {
+    showLogin('');
+  }
+})();
+</script>
+</body>
+</html>

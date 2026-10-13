@@ -1,0 +1,8 @@
+# Real secrets -- never commit these, only the .example.php templates
+firebase-service-account.php
+openai-config.php
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
